@@ -1,9 +1,7 @@
 import { create } from 'zustand';
-import type { ResponseInterface } from '../types/response';
-import type { ReviewInterface } from '../types/review';
-import type { MetaInterface } from '../types/meta';
-import { productApi } from '../lib/actions/product';
-import { showAlert } from '../lib/alert';
+import { productApi } from '@/lib/actions/product';
+import { showAlert } from '@/lib/alert';
+import type { ProductListResponse, ProductParams } from '@/lib/actions/product';
 
 export interface ProductInterface {
   id: number;
@@ -14,70 +12,64 @@ export interface ProductInterface {
   discountPercentage: number;
   rating: number;
   stock: number;
-  tags: [];
+  tags: string[];
   brand: string;
   sku: string;
   weight: number;
-  dimensions: {
-    width: number;
-    height: number;
-    depth: number;
-  };
+  dimensions: { width: number; height: number; depth: number };
   warrantyInformation: string;
   shippingInformation: string;
   availabilityStatus: string;
-  reviews: ReviewInterface[];
   returnPolicy: string;
   minimumOrderQuantity: number;
-  meta: MetaInterface;
+  meta: {
+    createdAt: string;
+    updatedAt: string;
+    barcode: string;
+    qrCode: string;
+  };
   thumbnail: string;
   images: string[];
 }
 
-export type ProductResponse = ResponseInterface<ProductInterface>;
-
 interface ProductState {
-  products: ProductResponse;
+  products: ProductListResponse;
   isLoadingProduct: boolean;
+  isMutatingProduct: boolean;
+  params: ProductParams;
 
-  setProduct: (products: ProductResponse) => void;
-  setIsLoadingProduct: (isLoadingProduct: boolean) => void;
-
-  fetchProducts: (params?: {
-    search?: string;
-    limit?: number;
-    total?: number;
-    skip?: number;
-    sortBy?: string;
-    order?: 'asc' | 'desc';
-  }) => Promise<void>;
-  createProduct: (Product: Partial<ProductInterface>) => Promise<void>;
+  setParams: (params: Partial<ProductParams>) => void;
+  fetchProducts: (params?: ProductParams) => Promise<void>;
+  createProduct: (product: Partial<ProductInterface>) => Promise<void>;
   updateProduct: (
-    id: string,
-    Product: Partial<ProductInterface>
+    id: number,
+    product: Partial<ProductInterface>
   ) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
+  deleteProduct: (id: number) => Promise<void>;
 }
 
-export const useProductstore = create<ProductState>((set, get) => ({
-  products: {
-    data: [],
-    total: 0,
-    skip: 10,
-    limit: 10,
-  },
+export const useProductStore = create<ProductState>((set, get) => ({
+  products: { products: [], total: 0, skip: 0, limit: 10 },
   isLoadingProduct: false,
+  isMutatingProduct: false,
+  params: { skip: 0, limit: 10 },
 
-  setProduct: (products) => set({ products }),
-  setIsLoadingProduct: (isLoadingProduct) => set({ isLoadingProduct }),
+  setParams: (newParams) => {
+    const merged = { ...get().params, ...newParams };
+    set({ params: merged });
+    get().fetchProducts(merged);
+  },
 
   fetchProducts: async (params) => {
     set({ isLoadingProduct: true });
     try {
-      const data = await productApi.getAll(params);
+      const p = params ?? get().params;
+      const data = p.search
+        ? await productApi.search(p.search, p)
+        : await productApi.getAll(p);
       set({ products: data });
-    } catch (error) {
-      showAlert('error', 'Failed to fetch products')
+    } catch (error: any) {
+      showAlert('error', error.message, 'Failed to fetch products');
       throw error;
     } finally {
       set({ isLoadingProduct: false });
@@ -85,41 +77,72 @@ export const useProductstore = create<ProductState>((set, get) => ({
   },
 
   createProduct: async (product) => {
-    set({ isLoadingProduct: true });
+    set({ isMutatingProduct: true });
     try {
-      await productApi.create(product);
-      showAlert('success', 'Product created successfully')
-    } catch(error: unknown) {
-      showAlert('error', 'Failed to create products')
-      throw error
+      const data = await productApi.create(product);
+      set((state) => ({
+        products: {
+          ...state.products,
+          products: [data, ...state.products.products],
+          total: state.products.total + 1,
+        },
+      }));
+      showAlert('success', 'Product created successfully.');
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      showAlert('error', message, 'Failed to product action');
+      throw error;
     } finally {
-     await get().fetchProducts(); 
+      set({ isMutatingProduct: false });
     }
   },
 
   updateProduct: async (id, product) => {
-    set({ isLoadingProduct: true });
+    set({ isMutatingProduct: true });
     try {
-      await productApi.update(id, product);
-      showAlert('success', 'Product updated successfully')
-    } catch(error: unknown) {
-      showAlert('error', 'Failed to update products')
-      throw error
+      let updatedProduct: ProductInterface;
+
+      if (id <= 100) {
+        updatedProduct = await productApi.update(id, product);
+      }
+
+      set((state) => ({
+        products: {
+          ...state.products,
+          products: state.products.products.map((p) =>
+            p.id === id ? { ...p, ...updatedProduct } : p
+          ),
+        },
+      }));
+
+      showAlert('success', 'Product updated successfully.');
+    } catch (error: any) {
+      showAlert('error', error.message, 'Failed to update product');
+      throw error;
     } finally {
-      await get().fetchProducts();
+      set({ isMutatingProduct: false });
     }
   },
 
   deleteProduct: async (id) => {
-    set({ isLoadingProduct: true });
+    set({ isMutatingProduct: true });
     try {
       await productApi.delete(id);
-      showAlert('warning', 'Product deleted successfully')
-    } catch(error: unknown) {
-      showAlert('error', 'Failed to delete products')
-      throw error
+      set((state) => ({
+        products: {
+          ...state.products,
+          products: state.products.products.filter((p) => p.id !== id),
+          total: state.products.total - 1,
+        },
+      }));
+
+      showAlert('success', 'Product deleted successfully.');
+    } catch (error: any) {
+      showAlert('error', error.message, 'Failed to delete product');
+      throw error;
     } finally {
-      await get().fetchProducts();
+      set({ isMutatingProduct: false });
     }
   },
 }));
