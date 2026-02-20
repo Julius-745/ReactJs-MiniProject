@@ -46,6 +46,7 @@ interface ProductState {
     product: Partial<ProductInterface>
   ) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
+  fetchTimeout: ReturnType<typeof setTimeout> | null;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -53,11 +54,37 @@ export const useProductStore = create<ProductState>((set, get) => ({
   isLoadingProduct: false,
   isMutatingProduct: false,
   params: { skip: 0, limit: 10 },
+  fetchTimeout: null,
 
   setParams: (newParams) => {
-    const merged = { ...get().params, ...newParams };
+    const currentParams = get().params;
+    const merged = { ...currentParams, ...newParams };
+
+    const hasChanged = Object.keys(newParams).some(
+      (key) =>
+        (newParams as Record<string, unknown>)[key] !==
+        (currentParams as Record<string, unknown>)[key]
+    );
+    if (!hasChanged) return;
+
     set({ params: merged });
-    get().fetchProducts(merged);
+
+    if (get().fetchTimeout) {
+      clearTimeout(get().fetchTimeout!);
+      set({ fetchTimeout: null });
+    }
+
+    const isSearchChange = 'search' in newParams;
+
+    if (isSearchChange) {
+      const timeout = setTimeout(() => {
+        get().fetchProducts(merged);
+        set({ fetchTimeout: null });
+      }, 400);
+      set({ fetchTimeout: timeout });
+    } else {
+      get().fetchProducts(merged);
+    }
   },
 
   fetchProducts: async (params) => {
@@ -101,17 +128,12 @@ export const useProductStore = create<ProductState>((set, get) => ({
   updateProduct: async (id, product) => {
     set({ isMutatingProduct: true });
     try {
-      let updatedProduct: ProductInterface;
-
-      if (id <= 100) {
-        updatedProduct = await productApi.update(id, product);
-      }
-
+      // Manipulate data locally only to avoid mock persistence issues
       set((state) => ({
         products: {
           ...state.products,
           products: state.products.products.map((p) =>
-            p.id === id ? { ...p, ...updatedProduct } : p
+            p.id === id ? ({ ...p, ...product } as ProductInterface) : p
           ),
         },
       }));

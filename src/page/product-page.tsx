@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -35,7 +35,6 @@ const ProductsPage = () => {
     isLoadingProduct,
     isMutatingProduct,
     params,
-    fetchProducts,
     createProduct,
     updateProduct,
     deleteProduct,
@@ -50,23 +49,13 @@ const ProductsPage = () => {
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
-  const isInitialMount = useRef(true);
-
   useEffect(() => {
-    fetchProducts();
     fetchCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-    const t = setTimeout(() => {
-      setParams({ search, skip: 0 });
-    }, 400);
-    return () => clearTimeout(t);
+    setParams({ search, skip: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 

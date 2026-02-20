@@ -9,11 +9,13 @@ interface CategoryState {
   fetchCategories: () => Promise<void>;
 }
 
-export const useCategoryStore = create<CategoryState>((set) => ({
+export const useCategoryStore = create<CategoryState>((set, get) => ({
   categories: [],
   isLoadingCategory: false,
 
   fetchCategories: async () => {
+    if (get().categories.length > 0) return;
+
     set({ isLoadingCategory: true });
     try {
       const data = await categoryApi.getAll();
