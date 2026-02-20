@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -6,6 +7,7 @@ import { Label } from '../ui/label';
 import { useAuthStore } from '../../store/auth-store';
 
 const LoginForm = () => {
+  const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -14,7 +16,12 @@ const LoginForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await login({ username, password });
+    try {
+      await login({ username, password });
+      navigate('/product');
+    } catch {
+      // Error is handled in the store
+    }
   };
 
   return (

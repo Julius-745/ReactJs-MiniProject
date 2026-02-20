@@ -1,11 +1,21 @@
 import { create } from 'zustand';
+import type { ProductInterface } from './product-store';
+
+type ModalPayload =
+  | { type: 'create' }
+  | { type: 'edit'; product: ProductInterface }
+  | { type: 'delete'; product: ProductInterface }
+  | { type: 'view'; product: ProductInterface }
+  | null;
 
 interface ModalState {
-  openModal: boolean;
-  setOpenModal: (openModal: boolean) => void;
+  modal: ModalPayload;
+  openModal: (payload: NonNullable<ModalPayload>) => void;
+  closeModal: () => void;
 }
 
 export const useModalStore = create<ModalState>((set) => ({
-  openModal: false,
-  setOpenModal: (openModal) => set({ openModal }),
+  modal: null,
+  openModal: (payload) => set({ modal: payload }),
+  closeModal: () => set({ modal: null }),
 }));
